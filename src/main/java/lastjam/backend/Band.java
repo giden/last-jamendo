@@ -1,4 +1,4 @@
-package crud.backend;
+package lastjam.backend;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -9,8 +9,9 @@ import javax.persistence.Id;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
 import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
+
+import org.hibernate.validator.constraints.URL;
 
 @Entity
 public class Band implements Serializable {
@@ -31,7 +32,7 @@ public class Band implements Serializable {
     @Size(min = 3, max = 50, message = "name must be longer than 3 and less than 40 characters")
     private String name;
 
-   // @Pattern(regexp = "[a-z]+\\.[a-z]+", message = "Must be valid www")
+    @URL
     private String website;
     
     public Band() {
@@ -68,4 +69,5 @@ public class Band implements Serializable {
     public void setWebsite(String website) {
         this.website = website;
     }
+
 }

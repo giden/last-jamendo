@@ -1,4 +1,4 @@
-package crud.backend;
+package lastjam.backend;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

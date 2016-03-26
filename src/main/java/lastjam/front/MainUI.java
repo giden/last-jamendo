@@ -1,6 +1,7 @@
-package crud.vaadin;
+package lastjam.front;
 
 import com.vaadin.annotations.Theme;
+import com.vaadin.data.Item;
 import com.vaadin.navigator.Navigator;
 import com.vaadin.navigator.View;
 import com.vaadin.navigator.ViewChangeListener;
@@ -8,15 +9,17 @@ import com.vaadin.server.ExternalResource;
 import com.vaadin.server.FontAwesome;
 import com.vaadin.server.VaadinRequest;
 import com.vaadin.spring.annotation.SpringUI;
-import com.vaadin.spring.annotation.SpringView;
 import com.vaadin.ui.*;
 
-import crud.backend.Band;
-import crud.backend.BandRepository;
+import lastjam.backend.Band;
+import lastjam.backend.BandRepository;
+import lastjam.utils.JSONUtils;
 
-import java.io.InputStream;
-import java.net.URL;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.vaadin.viritin.button.ConfirmButton;
@@ -32,12 +35,9 @@ import org.vaadin.viritin.layouts.MVerticalLayout;
     public class MainUI extends UI {
 
 
-    /**
-     * 
-     * 
-     * 
-     * 
-     */
+    	private static final String getArtist = "http://api.jamendo.com/v3.0/artists/?client_id=9d9f42e3&name=";
+    	
+    	
 		private static final long serialVersionUID = 8300584888422968386L;
 
 	@Autowired
@@ -45,6 +45,8 @@ import org.vaadin.viritin.layouts.MVerticalLayout;
 
     Navigator navigator;
 	private MTable<Band> list;
+	private Item bean;
+
 
 
     @Override
@@ -59,7 +61,6 @@ import org.vaadin.viritin.layouts.MVerticalLayout;
         setNavigator(navigator);
     }
 
-    @SpringView(name = "")
     public class MainView extends CustomComponent implements View {
 
         /**
@@ -70,6 +71,7 @@ import org.vaadin.viritin.layouts.MVerticalLayout;
         private Button edit;
         private Button delete;
         private Button process;
+        private Button synchro;
 
 
 
@@ -83,20 +85,28 @@ import org.vaadin.viritin.layouts.MVerticalLayout;
             addNew = new MButton(FontAwesome.PLUS, this::add);
             edit = new MButton(FontAwesome.PENCIL_SQUARE_O, this::edit);
             delete = new ConfirmButton(FontAwesome.TRASH_O,
-                    "Are you sure you want to delete the entry?", this::remove);
+                    "Jesteś pewny?", this::remove);
             process = new MButton(FontAwesome.ARROW_RIGHT, this::process);
+            synchro = new ConfirmButton(FontAwesome.FIREFOX, "Synchronizować z JamendoAPI?",this::synchroWithJamendo);
 
             Panel panel = new Panel();
 
             MVerticalLayout vl = new MVerticalLayout(
                             new RichText().withMarkDownResource("/welcome.md"),
-                            new MHorizontalLayout(addNew, edit, delete, process),
+                            new MHorizontalLayout(addNew, edit, delete, process, synchro),
                             list
                     ).expand(list);
             panel.setSizeFull();
             panel.setContent(vl);
             listEntities();
             list.addMValueChangeListener(e -> adjustActionButtonState());
+            list.addItemClickListener(e -> {
+                    if (e.isDoubleClick()) {
+                    	bean = e.getItem();
+                        navigator.navigateTo("band");
+
+                    }
+            });
             setCompositionRoot(panel);
         }
 
@@ -105,6 +115,7 @@ import org.vaadin.viritin.layouts.MVerticalLayout;
             edit.setEnabled(hasSelection);
             delete.setEnabled(hasSelection);
             process.setEnabled(hasSelection);
+            synchro.setEnabled(hasSelection);
         }
 
         private void listEntities() {
@@ -153,6 +164,54 @@ import org.vaadin.viritin.layouts.MVerticalLayout;
         public void process(Button.ClickEvent e) {
             navigator.navigateTo("band");
         }
+        
+        public void synchroWithJamendo(Button.ClickEvent e) {
+            String json = JSONUtils.downloadFileFromInternet(
+						getArtist+list.getValue().getName());
+			
+
+            JSONObject jsob = new JSONObject(json);
+
+            JSONArray array = jsob.getJSONArray("results");
+            
+            if(array.isNull(0)){
+            	VerticalLayout vl = new VerticalLayout();
+            	
+            	Label label = new Label("Nie udało się. Czy podałeś właściwy zespół?");
+            	Button button = new Button("zamknij");
+            	button.addClickListener(e2 -> closeWindow());
+            	
+            	label.setHeight("10em");
+            			
+            	vl.addComponent(label);
+            	vl.addComponent(button);
+            	
+            	vl.setComponentAlignment(button, Alignment.BOTTOM_RIGHT);
+            	
+            	
+            	Window popup = new Window("Edit entry", vl);
+                popup.setModal(true);
+                popup.setHeight("15em");
+                popup.setWidth("25em");
+
+                UI.getCurrent().addWindow(popup);
+                return;
+            }
+            
+            Band band = list.getValue();
+            band.setWebsite(array.getJSONObject(0).getString("website"));
+            try {
+				band.setFormed(new SimpleDateFormat("yyyy-MM-dd").parse(array.getJSONObject(0).getString("joindate")));
+			} catch (JSONException | ParseException e1) {
+				e1.printStackTrace();
+			}
+            
+            repo.save(band);
+            listEntities();
+            
+
+        	}
+
 
         @Override
         public void enter(ViewChangeListener.ViewChangeEvent viewChangeEvent) {
@@ -160,7 +219,6 @@ import org.vaadin.viritin.layouts.MVerticalLayout;
         }
     }
 
-    @SpringView(name = "band")
     public class BandView extends VerticalLayout implements View {
 
         /**
@@ -190,67 +248,19 @@ import org.vaadin.viritin.layouts.MVerticalLayout;
 
         @Override
         public void enter(ViewChangeListener.ViewChangeEvent viewChangeEvent) {
-            link.setResource(new ExternalResource(getBandWWW(list.getValue().getName())));
-            link.setCaption(list.getValue().getName());
+        	if(list.getValue()==null){
+        		if(bean.getItemProperty("website")!=null)
+        		link.setResource(new ExternalResource((String)bean.getItemProperty("website").getValue()));
+        		link.setCaption((String)bean.getItemProperty("name").getValue());
+        	}
+        	else{
+        		if(list.getValue().getWebsite()!=null) 
+        			link.setResource(new ExternalResource(list.getValue().getWebsite()));
+        		link.setCaption(list.getValue().getName());
+        	}
         }
 
-        public String getBandWWW(String name) {
-            String json = downloadFileFromInternet("http://api.jamendo.com/v3.0/artists/?client_id=9d9f42e3&name="+name);
 
-            JSONObject jsob = new JSONObject(json);
-
-            JSONArray array = jsob.getJSONArray("results");
-            
-            Band band = list.getValue();
-            band.setWebsite(array.getJSONObject(0).getString("website"));
-            repo.save(band);
-            
-            return band.getWebsite();
-
-        }
-        private String downloadFileFromInternet(String url)
-        {
-            if(url == null || url.isEmpty() == true)
-                throw new IllegalArgumentException("url is empty/null");
-            StringBuilder sb = new StringBuilder();
-            InputStream inStream = null;
-            try
-            {
-                url = urlEncode(url);
-                URL link = new URL(url);
-                inStream = link.openStream();
-                int i;
-                int total = 0;
-                byte[] buffer = new byte[8 * 1024];
-                while((i=inStream.read(buffer)) != -1)
-                {
-                    if(total >= (1024 * 1024))
-                    {
-                        return "";
-                    }
-                    total += i;
-                    sb.append(new String(buffer,0,i));
-                }
-            }
-            catch(Exception e )
-            {
-                e.printStackTrace();
-                return null;
-            }catch(OutOfMemoryError e)
-            {
-                e.printStackTrace();
-                return null;
-            }
-            return sb.toString();
-        }
-
-        private String urlEncode(String url)
-        {
-            url = url.replace("[","");
-            url = url.replace("]","");
-            url = url.replaceAll(" ","%20");
-            return url;
-        }
 
     }
 
