@@ -2,18 +2,25 @@ package lastjam.front;
 
 import com.vaadin.annotations.Theme;
 import com.vaadin.data.Item;
+import com.vaadin.data.validator.EmailValidator;
 import com.vaadin.navigator.Navigator;
 import com.vaadin.navigator.View;
+import com.vaadin.navigator.ViewChangeListener;
 import com.vaadin.navigator.ViewChangeListener.ViewChangeEvent;
 import com.vaadin.server.ExternalResource;
 import com.vaadin.server.FontAwesome;
 import com.vaadin.server.VaadinRequest;
+import com.vaadin.shared.ui.MarginInfo;
 import com.vaadin.shared.ui.label.ContentMode;
 import com.vaadin.spring.annotation.SpringUI;
 import com.vaadin.ui.*;
+import com.vaadin.ui.Button.ClickEvent;
+import com.vaadin.ui.themes.Reindeer;
 
 import lastjam.backend.Band;
 import lastjam.backend.BandRepository;
+import lastjam.backend.Person;
+import lastjam.backend.PersonRepository;
 import lastjam.utils.JSONUtils;
 
 import java.text.ParseException;
@@ -44,6 +51,10 @@ public class MainUI extends UI {
 
 	@Autowired
 	BandRepository repo;
+	
+	@Autowired
+	PersonRepository personRepo;
+
 
 	Navigator navigator;
 	private MTable<Band> list;
@@ -53,12 +64,41 @@ public class MainUI extends UI {
 
 	@Override
 	protected void init(VaadinRequest vaadinRequest) {
-		// Create a navigator to control the views
 		navigator = new Navigator(this, this);
 
-		// Create and register the views
-		navigator.addView("", new MainView());
+		navigator.addView("", new LoginView());
+		navigator.addView("main", new MainView());
 		navigator.addView("band", new BandView());
+		
+		navigator.addViewChangeListener(new ViewChangeListener() {
+
+            /**
+			 * 
+			 */
+			private static final long serialVersionUID = 868340624307696054L;
+
+			@Override
+            public boolean beforeViewChange(ViewChangeEvent event) {
+
+                boolean isLoggedIn = getSession().getAttribute("user") != null;
+                boolean isLoginView = event.getNewView() instanceof LoginView;
+
+                if (!isLoggedIn && !isLoginView) {
+                    navigator.navigateTo("login");
+                    return false;
+
+                } else if (isLoggedIn && isLoginView) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            @Override
+            public void afterViewChange(ViewChangeEvent event) {
+
+            }
+        });
 
 		setNavigator(navigator);
 	}
@@ -74,6 +114,7 @@ public class MainUI extends UI {
 		private Button delete;
 		private Button process;
 		private Button synchro;
+		private Button logout;
 
 
 
@@ -90,14 +131,20 @@ public class MainUI extends UI {
 					"Jesteś pewny?", this::remove);
 			process = new MButton(FontAwesome.ARROW_RIGHT, this::process);
 			synchro = new ConfirmButton(FontAwesome.FIREFOX, "Synchronizować z JamendoAPI?",this::synchroWithJamendo);
-
+			
+			logout = new Button("Wyloguj", this::logout);
+			
 			Panel panel = new Panel();
 
 			MVerticalLayout vl = new MVerticalLayout(
+					logout,
 					new RichText().withMarkDownResource("/welcome.md"),
 					new MHorizontalLayout(addNew, edit, delete, process, synchro),
 					list
 					).expand(list);
+			
+			vl.setComponentAlignment(logout, Alignment.TOP_RIGHT);
+			
 			panel.setSizeFull();
 			panel.setContent(vl);
 			listEntities();
@@ -213,6 +260,14 @@ public class MainUI extends UI {
 
 
 		}
+		
+		public void logout(Button.ClickEvent e) {
+			getSession().setAttribute("user", null);
+
+            // Refresh this view, should redirect to login view
+            navigator.navigateTo("");
+
+		}
 
 
 		@Override
@@ -238,7 +293,7 @@ public class MainUI extends UI {
 
 		Button button = new Button("Go to Main View",
 				(Button.ClickListener) event -> {
-					navigator.navigateTo("");
+					navigator.navigateTo("main");
 				});
 
 		private static final long serialVersionUID = 7239676187675446035L;
@@ -333,6 +388,88 @@ public class MainUI extends UI {
 
 
 
+	}
+	public class LoginView extends CustomComponent implements View, Button.ClickListener {
+
+		private static final long serialVersionUID = 5468062162019822012L;
+		
+		public static final String NAME = "login";
+
+		private final TextField user;
+
+		private final PasswordField password;
+
+		private final Button loginButton;
+
+		public LoginView() {
+			setSizeFull();
+
+			user = new TextField("Użytkownik:");
+			user.setWidth("300px");
+			user.setRequired(true);
+			user.setInputPrompt("name@sample.com)");
+			user.addValidator(new EmailValidator("Musi być email"));
+			user.setInvalidAllowed(false);
+
+			password = new PasswordField("Hasło:");
+			password.setWidth("300px");
+			password.setRequired(true);
+			password.setValue("");
+			password.setNullRepresentation("");
+
+			loginButton = new Button("Login", this);
+
+			VerticalLayout fields = new VerticalLayout(user, password, loginButton);
+			fields.setCaption("Zaloguj się");
+			fields.setSpacing(true);
+			fields.setMargin(new MarginInfo(true, true, true, false));
+			fields.setSizeUndefined();
+
+			VerticalLayout viewLayout = new VerticalLayout(fields);
+			viewLayout.setSizeFull();
+			viewLayout.setComponentAlignment(fields, Alignment.MIDDLE_CENTER);
+			viewLayout.setStyleName(Reindeer.LAYOUT_BLUE);
+			setCompositionRoot(viewLayout);
+		}
+
+		@Override
+		public void enter(ViewChangeEvent event) {
+			user.focus();
+		}
+
+		@Override
+		public void buttonClick(ClickEvent event) {
+
+			//
+			// Validate the fields using the navigator. By using validors for the
+			// fields we reduce the amount of queries we have to use to the database
+			// for wrongly entered passwords
+			//
+			if (!user.isValid() || !password.isValid()) {
+				return;
+			}
+
+			String username = user.getValue();
+			String password = this.password.getValue();
+
+
+			Person user = personRepo.findByUsername(username);
+			
+
+			if (password.equals(user.getPassword())) {
+
+				getSession().setAttribute("user", username);
+
+				navigator.navigateTo("main");
+
+			} else {
+
+				// Wrong password clear the password field and refocuses it
+				this.password.setValue(null);
+				this.password.focus();
+
+			}
+		}
 	}
 
 
