@@ -110,6 +110,7 @@ public class RegisterForm implements Validator{
 		popup = new Window("Zarejestuj się", createContent());
 		popup.setModal(true);
 		UI.getCurrent().addWindow(popup);
+		name.focus();
 	}
 
 	public void setSavedHandler(SavedHandler<Person> savedHandler) {

@@ -1,7 +1,21 @@
 package lastjam.front;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.vaadin.viritin.button.ConfirmButton;
+import org.vaadin.viritin.button.MButton;
+import org.vaadin.viritin.label.RichText;
+import org.vaadin.viritin.layouts.MHorizontalLayout;
+import org.vaadin.viritin.layouts.MVerticalLayout;
+
 import com.vaadin.annotations.Theme;
 import com.vaadin.data.Item;
+import com.vaadin.data.util.BeanItemContainer;
 import com.vaadin.data.validator.EmailValidator;
 import com.vaadin.navigator.Navigator;
 import com.vaadin.navigator.View;
@@ -13,8 +27,20 @@ import com.vaadin.server.VaadinRequest;
 import com.vaadin.shared.ui.MarginInfo;
 import com.vaadin.shared.ui.label.ContentMode;
 import com.vaadin.spring.annotation.SpringUI;
-import com.vaadin.ui.*;
+import com.vaadin.ui.Alignment;
+import com.vaadin.ui.Button;
 import com.vaadin.ui.Button.ClickEvent;
+import com.vaadin.ui.CustomComponent;
+import com.vaadin.ui.HorizontalLayout;
+import com.vaadin.ui.Label;
+import com.vaadin.ui.Link;
+import com.vaadin.ui.Panel;
+import com.vaadin.ui.PasswordField;
+import com.vaadin.ui.Table;
+import com.vaadin.ui.TextField;
+import com.vaadin.ui.UI;
+import com.vaadin.ui.VerticalLayout;
+import com.vaadin.ui.Window;
 import com.vaadin.ui.themes.Reindeer;
 
 import lastjam.backend.Band;
@@ -22,20 +48,6 @@ import lastjam.backend.BandRepository;
 import lastjam.backend.Person;
 import lastjam.backend.PersonRepository;
 import lastjam.utils.JSONUtils;
-
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.vaadin.viritin.button.ConfirmButton;
-import org.vaadin.viritin.button.MButton;
-import org.vaadin.viritin.fields.MTable;
-import org.vaadin.viritin.label.RichText;
-import org.vaadin.viritin.layouts.MHorizontalLayout;
-import org.vaadin.viritin.layouts.MVerticalLayout;
 
 
 @Theme("valo")
@@ -56,8 +68,11 @@ public class MainUI extends UI {
 	PersonRepository personRepo;
 	
 	Navigator navigator;
-	private MTable<Band> list;
+	private Table list;
 	private Item bean;
+
+	private BeanItemContainer<Band> bands = new BeanItemContainer<>(
+			Band.class);
 
 
 
@@ -71,9 +86,6 @@ public class MainUI extends UI {
 		
 		navigator.addViewChangeListener(new ViewChangeListener() {
 
-            /**
-			 * 
-			 */
 			private static final long serialVersionUID = 868340624307696054L;
 
 			@Override
@@ -87,6 +99,7 @@ public class MainUI extends UI {
                     return false;
 
                 } else if (isLoggedIn && isLoginView) {
+                    navigator.navigateTo("main");
                     return false;
                 }
 
@@ -118,12 +131,15 @@ public class MainUI extends UI {
 
 
 		public MainView() {
-
-			list = new MTable<>(Band.class)
-					.withProperties("name", "website", "formed")
-					.withColumnHeaders("name", "website", "formed")
-					.setSortableProperties("name")
-					.withFullWidth();
+			
+			list = new Table();
+			list.setContainerDataSource(bands);
+			list.setVisibleColumns("name", "website", "formed");
+			list.setColumnHeaders("nazwa", "adres WWW", "data powstania");
+			list.setWidth(100, Unit.PERCENTAGE);
+			list.setSelectable(true);
+			list.setImmediate(true);
+									
 			addNew = new MButton(FontAwesome.PLUS, this::add);
 			edit = new MButton(FontAwesome.PENCIL_SQUARE_O, this::edit);
 			delete = new ConfirmButton(FontAwesome.TRASH_O,
@@ -146,7 +162,7 @@ public class MainUI extends UI {
 			
 			panel.setSizeFull();
 			panel.setContent(vl);
-			list.addMValueChangeListener(e -> adjustActionButtonState());
+			list.addValueChangeListener(e -> adjustActionButtonState());
 			list.addItemClickListener(e -> {
 				if (e.isDoubleClick()) {
 					bean = e.getItem();
@@ -166,7 +182,9 @@ public class MainUI extends UI {
 		}
 
 		private void listEntities() {
-			list.setBeans(repo.findByPerson((Person)getSession().getAttribute("user")));
+			bands.removeAllItems();
+			bands.addAll(repo.findByPerson((Person)getSession().getAttribute("user")));
+			bands.sort(new Object[]{"name", "formed"}, new boolean[]{true, false});
 		}
 
 		public void add(Button.ClickEvent e) {
@@ -174,7 +192,7 @@ public class MainUI extends UI {
 		}
 
 		public void edit(Button.ClickEvent e) {
-			edit(list.getValue());
+			edit((Band)list.getValue());
 		}
 
 		protected void edit(final Band band) {
@@ -201,7 +219,11 @@ public class MainUI extends UI {
 		}
 
 		public void remove(Button.ClickEvent e) {
-			repo.delete(list.getValue());
+			Person person = ((Band)list.getValue()).getPerson();
+			person.removeBand((Band)list.getValue());
+			
+			personRepo.save(person);
+			
 			list.setValue(null);
 			listEntities();
 		}
@@ -212,7 +234,7 @@ public class MainUI extends UI {
 
 		public void synchroWithJamendo(Button.ClickEvent e) {
 			String json = JSONUtils.downloadFileFromInternet(
-					getArtist+list.getValue().getName());
+					getArtist+((Band)list.getValue()).getName());
 
 
 			JSONObject jsob = new JSONObject(json);
@@ -226,24 +248,25 @@ public class MainUI extends UI {
 				Button button = new Button("zamknij");
 				button.addClickListener(e2 -> closeWindow());
 
-				label.setHeight("10em");
+				label.setHeight("7em");
 
 				vl.addComponent(label);
 				vl.addComponent(button);
 
 				vl.setComponentAlignment(button, Alignment.BOTTOM_RIGHT);
-
+				vl.setSpacing(true);
+				vl.setMargin(true);
 
 				Window popup = new Window("Edit entry", vl);
 				popup.setModal(true);
-				popup.setHeight("15em");
+				popup.setHeight("14em");
 				popup.setWidth("25em");
 
 				UI.getCurrent().addWindow(popup);
 				return;
 			}
 
-			Band band = list.getValue();
+			Band band = (Band) list.getValue();
 			band.setWebsite(array.getJSONObject(0).getString("website"));
 			try {
 				band.setFormed(new SimpleDateFormat("yyyy-MM-dd").parse(array.getJSONObject(0).getString("joindate")));
@@ -327,14 +350,14 @@ public class MainUI extends UI {
 				}
 			}
 			else{
-				if(list.getValue().getWebsite()!=null) 
-					link.setResource(new ExternalResource(list.getValue().getWebsite()));
-				link.setCaption(list.getValue().getName());
-				nameLabel = new Label("<h1>"+list.getValue().getName()+"</h1>", ContentMode.HTML);
+				if(((Band)list.getValue()).getWebsite()!=null) 
+					link.setResource(new ExternalResource(((Band)list.getValue()).getWebsite()));
+				link.setCaption(((Band)list.getValue()).getName());
+				nameLabel = new Label("<h1>"+((Band)list.getValue()).getName()+"</h1>", ContentMode.HTML);
 
 
 				json = JSONUtils.downloadFileFromInternet(
-						getTracks+list.getValue().getName());
+						getTracks+((Band)list.getValue()).getName());
 
 			}
 			
@@ -389,14 +412,14 @@ public class MainUI extends UI {
 
 		private static final long serialVersionUID = 5468062162019822012L;
 		
-		public static final String NAME = "login";
-
 		private final TextField user;
 
 		private final PasswordField password;
 
 		private final Button loginButton;
 		private final Button registerButton;
+		
+		Label message = new Label();
 
 		public LoginView() {
 			setSizeFull();
@@ -406,7 +429,6 @@ public class MainUI extends UI {
 			user.setRequired(true);
 			user.setInputPrompt("name@sample.com");
 			user.addValidator(new EmailValidator("Musi być email"));
-			user.setInvalidAllowed(false);
 
 			password = new PasswordField("Hasło:");
 			password.setWidth("300px");
@@ -420,7 +442,7 @@ public class MainUI extends UI {
 
 			HorizontalLayout hl = new HorizontalLayout(loginButton, registerButton);
 			hl.setSpacing(true);
-			VerticalLayout fields = new VerticalLayout(user, password, hl);
+			VerticalLayout fields = new VerticalLayout(user, password, hl, message);
 			fields.setCaption("Zaloguj się");
 			fields.setSpacing(true);
 			fields.setMargin(new MarginInfo(true, true, true, false));
@@ -461,7 +483,14 @@ public class MainUI extends UI {
 		@Override
 		public void buttonClick(ClickEvent event) {
 
-			if (!user.isValid() || !password.isValid()) {
+			if (!user.isValid()) {
+				message.setCaption(user.getErrorMessage().getFormattedHtmlMessage());
+				message.setCaptionAsHtml(true);
+				return;
+			}
+			if (!password.isValid()) {
+				message.setCaption(password.getErrorMessage().getFormattedHtmlMessage());
+				message.setCaptionAsHtml(true);
 				return;
 			}
 
@@ -472,15 +501,14 @@ public class MainUI extends UI {
 			Person user = personRepo.findByUsername(username);
 			
 
-			if (password.equals(user.getPassword())) {
+			if (user!=null && password.equals(user.getPassword())) {
 
 				getSession().setAttribute("user", user);
 
 				navigator.navigateTo("main");
 
 			} else {
-
-				// Wrong password clear the password field and refocuses it
+				message.setCaption("Brak usera lub złe hasło");
 				this.password.setValue(null);
 				this.password.focus();
 

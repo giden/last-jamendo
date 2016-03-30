@@ -9,4 +9,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface BandRepository extends JpaRepository<Band, Long> {
 	public List<Band> findByPerson(Person p);
+	public Band findById(long id);
 }

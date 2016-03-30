@@ -5,6 +5,7 @@ import java.util.Set;
 
 import javax.persistence.CascadeType;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.Id;
 import javax.persistence.OneToMany;
 import javax.validation.constraints.NotNull;
@@ -27,7 +28,7 @@ public class Person implements Serializable {
 	@Size(min=5, message="Password is too short")
 	private String password;
 	
-    @OneToMany(mappedBy = "person", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "person", cascade = CascadeType.ALL, fetch=FetchType.EAGER, orphanRemoval=true)
 	private Set<Band> bands;
 
 	public String getUsername() {
@@ -52,6 +53,10 @@ public class Person implements Serializable {
 
 	public void setBands(Set<Band> bands) {
 		this.bands = bands;
+	}
+	public void removeBand(Band band)
+	{
+	    this.bands.remove(band);
 	}
 	
 
