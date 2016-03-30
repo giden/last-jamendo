@@ -12,7 +12,7 @@ public class ValidatorUtils {
 	 
     private ValidatorUtils() {}
      
-    public static void installSingleValidator(Field<?> field, String attribute) {
+    public static void installSingleValidatorBand(Field<?> field, String attribute) {
          
         Collection<Validator> validators = field.getValidators();
  

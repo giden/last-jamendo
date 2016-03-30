@@ -23,7 +23,7 @@ public class AddBandValidatorBlurListener implements BlurListener {
 	
 	@Override
 	public void blur(BlurEvent event) {
-        ValidatorUtils.installSingleValidator(field, attribute);
+        ValidatorUtils.installSingleValidatorBand(field, attribute);
 	}
 
 }

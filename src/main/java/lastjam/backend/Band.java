@@ -2,10 +2,13 @@ package lastjam.backend;
 
 import java.io.Serializable;
 import java.util.Date;
+
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.ManyToOne;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
 import javax.validation.constraints.NotNull;
@@ -34,6 +37,10 @@ public class Band implements Serializable {
 
     @URL
     private String website;
+    
+    @ManyToOne
+    @JoinColumn(name = "person_id")
+    private Person person;
     
     public Band() {
     }
@@ -69,5 +76,13 @@ public class Band implements Serializable {
     public void setWebsite(String website) {
         this.website = website;
     }
+
+	public Person getPerson() {
+		return person;
+	}
+
+	public void setPerson(Person person) {
+		this.person = person;
+	}
 
 }

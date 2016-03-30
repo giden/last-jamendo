@@ -17,6 +17,7 @@ import com.vaadin.ui.UI;
 import com.vaadin.ui.Window;
 
 import lastjam.backend.Band;
+import lastjam.backend.Person;
 import lastjam.utils.ValidatorUtils;
 
 
@@ -33,6 +34,7 @@ public class BandForm{
         void onReset(T entity);
     }
     
+    Person person;
 	
     private Button saveButton;
     private Button resetButton;
@@ -49,7 +51,9 @@ public class BandForm{
     TextField website;
     DateField formed;
 	
-	public BandForm(Band band) {
+	public BandForm(Band band, Person person) {
+		
+		this.person = person;
 		
 	    item = new BeanItem<Band>(band);
 	    group = new FieldGroup(item);
@@ -102,15 +106,18 @@ public class BandForm{
     
     protected void save(Button.ClickEvent e) {
     	try {
-    		ValidatorUtils.installSingleValidator(name, "name");
-    		ValidatorUtils.installSingleValidator(website, "website");
-    		ValidatorUtils.installSingleValidator(formed, "formed");
+    		ValidatorUtils.installSingleValidatorBand(name, "name");
+    		ValidatorUtils.installSingleValidatorBand(website, "website");
+    		ValidatorUtils.installSingleValidatorBand(formed, "formed");
     		
 			group.commit();
 		} catch (CommitException e1) {
 			e1.printStackTrace();
 		}
-        savedHandler.onSave(item.getBean());
+    	
+    	Band band = item.getBean();
+    	band.setPerson(person);
+        savedHandler.onSave(band);
     }
     protected void reset(Button.ClickEvent e) {
         resetHandler.onReset(null);

@@ -54,8 +54,7 @@ public class MainUI extends UI {
 	
 	@Autowired
 	PersonRepository personRepo;
-
-
+	
 	Navigator navigator;
 	private MTable<Band> list;
 	private Item bean;
@@ -84,7 +83,7 @@ public class MainUI extends UI {
                 boolean isLoginView = event.getNewView() instanceof LoginView;
 
                 if (!isLoggedIn && !isLoginView) {
-                    navigator.navigateTo("login");
+                    navigator.navigateTo("");
                     return false;
 
                 } else if (isLoggedIn && isLoginView) {
@@ -121,8 +120,8 @@ public class MainUI extends UI {
 		public MainView() {
 
 			list = new MTable<>(Band.class)
-					.withProperties("id", "name", "website", "formed")
-					.withColumnHeaders("id", "name", "website", "formed")
+					.withProperties("name", "website", "formed")
+					.withColumnHeaders("name", "website", "formed")
 					.setSortableProperties("name")
 					.withFullWidth();
 			addNew = new MButton(FontAwesome.PLUS, this::add);
@@ -147,7 +146,6 @@ public class MainUI extends UI {
 			
 			panel.setSizeFull();
 			panel.setContent(vl);
-			listEntities();
 			list.addMValueChangeListener(e -> adjustActionButtonState());
 			list.addItemClickListener(e -> {
 				if (e.isDoubleClick()) {
@@ -168,7 +166,7 @@ public class MainUI extends UI {
 		}
 
 		private void listEntities() {
-			list.setBeans(repo.findAll());
+			list.setBeans(repo.findByPerson((Person)getSession().getAttribute("user")));
 		}
 
 		public void add(Button.ClickEvent e) {
@@ -180,12 +178,10 @@ public class MainUI extends UI {
 		}
 
 		protected void edit(final Band band) {
-			BandForm bandForm = new BandForm(band);
+			BandForm bandForm = new BandForm(band, (Person)getSession().getAttribute("user"));
 			bandForm.openInModalPopup();
 			bandForm.setSavedHandler(this::saveEntry);
 			bandForm.setResetHandler(this::resetEntry);
-
-
 		}
 
 		public void saveEntry(Band band){
@@ -272,7 +268,7 @@ public class MainUI extends UI {
 
 		@Override
 		public void enter(ViewChangeEvent viewChangeEvent) {
-
+			listEntities();
 		}
 	}
 
@@ -400,6 +396,7 @@ public class MainUI extends UI {
 		private final PasswordField password;
 
 		private final Button loginButton;
+		private final Button registerButton;
 
 		public LoginView() {
 			setSizeFull();
@@ -407,7 +404,7 @@ public class MainUI extends UI {
 			user = new TextField("Użytkownik:");
 			user.setWidth("300px");
 			user.setRequired(true);
-			user.setInputPrompt("name@sample.com)");
+			user.setInputPrompt("name@sample.com");
 			user.addValidator(new EmailValidator("Musi być email"));
 			user.setInvalidAllowed(false);
 
@@ -418,8 +415,12 @@ public class MainUI extends UI {
 			password.setNullRepresentation("");
 
 			loginButton = new Button("Login", this);
+			registerButton = new Button("Register");
+			registerButton.addClickListener(e -> edit());
 
-			VerticalLayout fields = new VerticalLayout(user, password, loginButton);
+			HorizontalLayout hl = new HorizontalLayout(loginButton, registerButton);
+			hl.setSpacing(true);
+			VerticalLayout fields = new VerticalLayout(user, password, hl);
 			fields.setCaption("Zaloguj się");
 			fields.setSpacing(true);
 			fields.setMargin(new MarginInfo(true, true, true, false));
@@ -431,6 +432,26 @@ public class MainUI extends UI {
 			viewLayout.setStyleName(Reindeer.LAYOUT_BLUE);
 			setCompositionRoot(viewLayout);
 		}
+		
+		protected void edit() {
+			RegisterForm registerForm = new RegisterForm();
+			registerForm.openInModalPopup();
+			registerForm.setSavedHandler(this::save);
+			registerForm.setResetHandler(this::reset);
+		}
+
+		public void save(Person p){
+			personRepo.save(p);
+			closeWindow();
+		}
+
+		public void reset(){
+			closeWindow();
+		}
+		
+		protected void closeWindow() {
+			getWindows().stream().forEach(w -> removeWindow(w));
+		}
 
 		@Override
 		public void enter(ViewChangeEvent event) {
@@ -440,11 +461,6 @@ public class MainUI extends UI {
 		@Override
 		public void buttonClick(ClickEvent event) {
 
-			//
-			// Validate the fields using the navigator. By using validors for the
-			// fields we reduce the amount of queries we have to use to the database
-			// for wrongly entered passwords
-			//
 			if (!user.isValid() || !password.isValid()) {
 				return;
 			}
@@ -458,7 +474,7 @@ public class MainUI extends UI {
 
 			if (password.equals(user.getPassword())) {
 
-				getSession().setAttribute("user", username);
+				getSession().setAttribute("user", user);
 
 				navigator.navigateTo("main");
 
